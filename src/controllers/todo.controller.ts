@@ -15,7 +15,7 @@ export class TodoController {
         data: result.todos,
         pagination: {
           page: result.page,
-          limit: Number(query.limit) || 10, // Fixed: Use query limit
+          limit: Number(query.limit) || 10,
           total: result.total,
           totalPages: result.totalPages,
         },
@@ -112,7 +112,7 @@ export class TodoController {
     }
   }
 
-  async getTodoStats(req: Request, res: Response): Promise<void> {
+  async getTodoStats(_req: Request, res: Response): Promise<void> {
     try {
       const stats = await todoService.getTodoStats();
 
@@ -127,7 +127,7 @@ export class TodoController {
     }
   }
 
-  async healthCheck(req: Request, res: Response): Promise<void> {
+  async healthCheck(_req: Request, res: Response): Promise<void> {
     try {
       // Simple database health check
       await todoService.getAllTodos({ limit: 1 });

@@ -69,7 +69,7 @@ const todoSchema: Schema = new Schema(
   {
     timestamps: true,
     toJSON: {
-      transform: function (doc, ret: any): TodoJSON {
+      transform: function (_doc, ret: any): TodoJSON {
         return {
           id: ret._id.toString(),
           title: ret.title,
