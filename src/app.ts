@@ -1,68 +1,106 @@
-import express, { Application, NextFunction, Request, Response } from "express";
-import { todosRouter } from "./app/todos/todos.routers";
-const app: Application = express();
+import express, { Application } from 'express';
+import 'express-async-errors';
+import helmet from 'helmet';
+import cors from 'cors';
+import compression from 'compression';
+import morgan from 'morgan';
+import rateLimit from 'express-rate-limit';
+import { StatusCodes } from 'http-status-codes';
 
-app.use(express.json());
+import todoRoutes from './routes/todo.routes';
+import { errorHandler, notFoundHandler } from './middlewares/error.middleware';
+import logger from './utils/logger';
 
-const userRouter = express.Router();
+class App {
+  public app: Application;
 
-app.use("/todos", todosRouter);
-app.use("/users", userRouter);
+  constructor() {
+    this.app = express();
+    this.initializeMiddlewares();
+    this.initializeRoutes();
+    this.initializeErrorHandling();
+  }
 
-app.get(
-  "/",
-  (req: Request, res: Response, next: NextFunction) => {
-    console.log({
-      url: req.url,
-      method: req.method,
-      header: req.header,
+  private initializeMiddlewares(): void {
+    // Security headers
+    this.app.use(helmet());
+
+    // CORS
+    this.app.use(cors({
+      origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+      credentials: true
+    }));
+
+    // Compression
+    this.app.use(compression());
+
+    // Rate limiting
+    const limiter = rateLimit({
+      windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'), // 15 minutes
+      max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100'), // Limit each IP to 100 requests per windowMs
+      message: {
+        success: false,
+        message: 'Too many requests from this IP, please try again later'
+      },
+      standardHeaders: true,
+      legacyHeaders: false
     });
-    next();
-  },
+    this.app.use(limiter);
 
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      res.send("Welcome to Todos App");
-    } catch (error) {
-      next(error);
-    }
-  }
-);
+    // Body parsing middleware
+    this.app.use(express.json({ limit: '10mb' }));
+    this.app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-app.get(
-  "/error",
+    // Logging
+    this.app.use(morgan('combined', {
+      stream: { write: (message) => logger.info(message.trim()) }
+    }));
 
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      res.send("Welcome to error er world");
-    } catch (error) {
-      next(error);
-    }
-  }
-);
-
-app.use((req: Request, res: Response, next: NextFunction) => {
-  res.status(404).json({ message: "Route not found" });
-});
-
-app.use((error: any, req: Request, res: Response, next: NextFunction) => {
-  if (error) {
-    console.log("error", error);
-    res.status(400).json({
-      message: "Something went wrong from global error handler",
-      error,
+    // Request logging middleware
+    this.app.use((req, res, next) => {
+      logger.http('Incoming request', {
+        method: req.method,
+        url: req.url,
+        ip: req.ip,
+        userAgent: req.get('User-Agent')
+      });
+      next();
     });
   }
-});
 
-// [app]-[express.json()]-[todosRouter]-[Root Route "/"]-[GET "/todos"]-[POST Create ToDo]
-// [todosRouter]-[get all todos /todos GET]-[create todo /todos/create-todo POST todo]
+  private initializeRoutes(): void {
+    // Health check endpoint
+    this.app.get('/health', (req, res) => {
+      res.status(StatusCodes.OK).json({
+        success: true,
+        message: 'Server is running',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        environment: process.env.NODE_ENV
+      });
+    });
 
-export default app;
+    // API routes
+    this.app.use('/api/todos', todoRoutes);
 
-/**
- * Basic File Structure
- * Server - Server handling like - starting, closing error handling of server. only related to server
- * App file - Routing handle, middleware, route related error
- * App folder - App business logic handling like create read update delete, database related works
- */
+    // Root endpoint
+    this.app.get('/', (req, res) => {
+      res.status(StatusCodes.OK).json({
+        success: true,
+        message: 'Welcome to Todo API',
+        version: '1.0.0',
+        documentation: '/api/docs' // You can add Swagger documentation here
+      });
+    });
+  }
+
+  private initializeErrorHandling(): void {
+    // Handle 404
+    this.app.use(notFoundHandler);
+
+    // Handle all other errors
+    this.app.use(errorHandler);
+  }
+}
+
+export default App;

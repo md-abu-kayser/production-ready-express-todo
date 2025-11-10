@@ -1,16 +1,76 @@
-import app from "./app";
-import { client } from "./config/mongodb";
+import 'dotenv/config';
+import { connectDatabase } from './config/database';
+import App from './app';
+import logger from './utils/logger';
 
-let server;
+class Server {
+  private app: App;
+  private port: number;
 
-const port = 5000;
+  constructor() {
+    this.app = new App();
+    this.port = parseInt(process.env.PORT || '5000');
+  }
 
-const bootstrap = async () => {
-  await client.connect();
-  console.log("Connected To MongoDB");
-  server = app.listen(port, () => {
-    console.log(`Example app listening on port ${port}`);
-  });
-};
+  public async start(): Promise<void> {
+    try {
+      // Connect to database
+      await connectDatabase();
 
-bootstrap();
+      // Start server
+      const server = this.app.app.listen(this.port, () => {
+        logger.info(`🚀 Server running on port ${this.port}`);
+        logger.info(`📝 Environment: ${process.env.NODE_ENV}`);
+        logger.info(`📍 Health check: http://localhost:${this.port}/health`);
+      });
+
+      // Graceful shutdown
+      this.setupGracefulShutdown(server);
+    } catch (error) {
+      logger.error('Failed to start server:', error);
+      process.exit(1);
+    }
+  }
+
+  private setupGracefulShutdown(server: any): void {
+    const signals = ['SIGTERM', 'SIGINT'];
+
+    signals.forEach(signal => {
+      process.on(signal, async () => {
+        logger.info(`Received ${signal}, starting graceful shutdown...`);
+        
+        server.close((err: any) => {
+          if (err) {
+            logger.error('Error during server close:', err);
+            process.exit(1);
+          }
+          
+          logger.info('Server closed successfully');
+          process.exit(0);
+        });
+
+        // Force close after 10 seconds
+        setTimeout(() => {
+          logger.error('Forced shutdown after timeout');
+          process.exit(1);
+        }, 10000);
+      });
+    });
+
+    // Handle unhandled rejections
+    process.on('unhandledRejection', (reason, promise) => {
+      logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
+      process.exit(1);
+    });
+
+    // Handle uncaught exceptions
+    process.on('uncaughtException', (error) => {
+      logger.error('Uncaught Exception:', error);
+      process.exit(1);
+    });
+  }
+}
+
+// Start the server
+const server = new Server();
+server.start();
