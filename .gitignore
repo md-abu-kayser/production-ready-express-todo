@@ -43,6 +43,6 @@ coverage/
 .DS_Store
 Thumbs.db
 
-# Temporary Folders
+# Temporary folders
 tmp/
 temp/
