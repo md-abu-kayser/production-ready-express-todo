@@ -11,7 +11,7 @@ export interface ITodo extends Document {
   updatedAt: Date;
 }
 
-// toJSON transform
+// toJSON Transform
 interface TodoJSON {
   id: string;
   title: string;
