@@ -20,7 +20,7 @@
     "api",
     "rest"
   ],
-  "author": "Your Name",
+  "author": "Md Abu Kayser",
   "license": "MIT",
   "dependencies": {
     "express": "^5.1.0",
